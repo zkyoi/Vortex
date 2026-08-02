@@ -3,7 +3,7 @@ A lightweight, high-performance Luau library for Roblox.
 
 ## Quick Start
 ```lua
-local _version = "v0.1.1-alpha"
+local _version = "v0.1.2-alpha"
 local vortex = loadstring(game:HttpGet("https://github.com/zkyoi/Vortex/releases/download/" .. _version .. "/main.luau"))()
 
 -- Teleport to a random player
