@@ -11,7 +11,7 @@ local CoreGui = game:GetService("CoreGui")
 local vortex = {}
 local localPlayer = Players.LocalPlayer
 
-local activeNetless = {}
+vortex.activeNetless = {}
 
 -- // Types
 export type timerData = {
