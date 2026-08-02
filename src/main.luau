@@ -174,6 +174,7 @@ function vortex.simulationBoost(radius: number?): { stop: () -> () }
                 sethiddenproperty(localPlayer, "SimulationRadius", radius)
                 sethiddenproperty(localPlayer, "MaximumSimulationRadius", radius)
             end)
+            task.wait(10)
         end
     end)
 
@@ -279,7 +280,7 @@ function vortex.netlessAlign(initialNetless: initialNetless): netlessData?
                 instance = "AlignOrientation",
                 parent = basePart,
                 values = {
-                    Mode = Enum.PositionAlignmentMode.TwoAttachment,
+                    Mode = Enum.OrientationAlignmentMode.TwoAttachment,
                     Attachment0 = objectAttachment,
                     Attachment1 = anchorAttachment,
                     MaxTorque = math.huge,
@@ -454,7 +455,8 @@ function vortex.getChar(player: Player): Model?
 end
 
 -- // Check Character
-local function checkCharacter(target: (Model | Player)?): Model?if not target then return nil end
+local function checkCharacter(target: (Model | Player)?): Model?
+    if not target then return nil end
     local character: Model
 
     if target:IsA("Model") then
