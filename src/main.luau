@@ -13,6 +13,15 @@ local localPlayer = Players.LocalPlayer
 
 vortex.activeNetless = {}
 
+local DEFAULT_TIMER_DURATION = 1
+
+local DEFAULT_SIMULATION_INTERVAL = 10
+local DEFAULT_SIMULATION_RADIUS = 10000
+
+local MAX_TELEPORT_CHECK_DISTANCE = 5
+
+local NETLESS_VECTOR = Vector3.new(-30, 0, 0)
+
 -- // Types
 export type timerData = {
     alpha: number,
@@ -44,6 +53,8 @@ export type initialNetless = {
 }
 
 -- // Utility Functions
+
+-- Disconnects connections
 function vortex.disconnect(connection: RBXScriptConnection): boolean
     if connection and connection.Connected then
         connection:Disconnect()
@@ -53,6 +64,7 @@ function vortex.disconnect(connection: RBXScriptConnection): boolean
     return false
 end
 
+-- Resets velocity on a single BasePart
 function vortex.resetVelocity(part: BasePart): ()
     if not part or not part:IsA("BasePart") then return end
 
@@ -60,6 +72,7 @@ function vortex.resetVelocity(part: BasePart): ()
     part.AssemblyAngularVelocity = Vector3.zero
 end
 
+-- Gets the CFrame of a target
 function vortex.getCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
     if not target then return nil end
     local targetType = typeof(target)
@@ -88,6 +101,7 @@ function vortex.getCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
     return nil
 end
 
+-- Gets the BasePart of a target
 function vortex.getBasePart(target: Instance?): BasePart?
     if not target then return nil end
 
@@ -103,8 +117,10 @@ function vortex.getBasePart(target: Instance?): BasePart?
 end
 
 -- // Initialization Functions
+
+-- Creates a timer for loops
 function vortex.createTimer(duration: number): timerData
-    if not duration then duration = 1 end
+    if not duration then duration = DEFAULT_TIMER_DURATION end
     local startTime = os.clock()
 
     return function()
@@ -119,6 +135,7 @@ function vortex.createTimer(duration: number): timerData
     end
 end
 
+-- Creates a Tween
 function vortex.createTween(tweenData: tweenData): Tween
     if not tweenData then return nil end
 
@@ -129,6 +146,7 @@ function vortex.createTween(tweenData: tweenData): Tween
     )
 end
 
+-- Creates an Instance
 function vortex.createInstance(instanceData: instanceData): Instance
     if not instanceData then return nil end
 
@@ -148,6 +166,7 @@ function vortex.createInstance(instanceData: instanceData): Instance
     return instanceObject
 end
 
+-- Creates an Attachment
 function vortex.createAttachment(parent: BasePart, name: string?): Attachment
     local attachment = Instance.new("Attachment")
     attachment.Name = name or "VortexAttachment"
@@ -159,10 +178,11 @@ function vortex.createAttachment(parent: BasePart, name: string?): Attachment
     return attachment
 end
 
-function vortex.simulationBoost(radius: number?): { stop: () -> () }
+-- Creates a simulation loop
+function vortex.simulationBoost(radius: number?, interval: number?): { stop: () -> () }
     if not sethiddenproperty then return nil end
-
-    radius = radius or 10000
+    interval = interval or DEFAULT_SIMULATION_INTERVAL
+    radius = radius or DEFAULT_SIMULATION_RADIUS
     local isRunning = true
 
     local thread: thread?
@@ -174,7 +194,7 @@ function vortex.simulationBoost(radius: number?): { stop: () -> () }
                 sethiddenproperty(localPlayer, "SimulationRadius", radius)
                 sethiddenproperty(localPlayer, "MaximumSimulationRadius", radius)
             end)
-            task.wait(10)
+            task.wait(interval)
         end
     end)
 
@@ -191,11 +211,14 @@ function vortex.simulationBoost(radius: number?): { stop: () -> () }
     return controller
 end
 
+-- Netless
 function vortex.netlessAlign(initialNetless: initialNetless): netlessData?
     if not initialNetless then return nil end
 
     local objects, initialTarget = initialNetless.objects, initialNetless.initialTarget
     local objectsList: { Instance } = typeof(objects) == "Instance" and { objects } or (objects :: { Instance })
+    if not objectsList then return end
+
     local targetCFrame = vortex.getCFrame(initialTarget) or CFrame.identity
     local targetAnchor = vortex.createInstance({
         instance = "Part",
@@ -209,6 +232,8 @@ function vortex.netlessAlign(initialNetless: initialNetless): netlessData?
         }
     })
     local anchorAttachment = vortex.createAttachment(targetAnchor)
+
+    local VECTOR = NETLESS_VECTOR
 
     local managedParts = {}
     local activeConstraints = {}
@@ -312,7 +337,7 @@ function vortex.netlessAlign(initialNetless: initialNetless): netlessData?
     conn = RunService.Heartbeat:Connect(function()
         for _, part in managedParts do
             if part and part.Parent then
-                part.AssemblyLinearVelocity = Vector3.new(-30, 0, 0)
+                part.AssemblyLinearVelocity = VECTOR
             end
         end
     end)
@@ -325,6 +350,8 @@ function vortex.netlessAlign(initialNetless: initialNetless): netlessData?
 end
 
 -- // Core Functions
+
+-- Teleports LocalPlayer to a specific location
 function vortex.teleportTo(target: (Vector3 | CFrame | Instance)): boolean
     local root = vortex.getRoot(localPlayer)
     local targetCFrame = vortex.getCFrame(target)
@@ -333,9 +360,10 @@ function vortex.teleportTo(target: (Vector3 | CFrame | Instance)): boolean
     vortex.resetVelocity(root)
     root.CFrame = targetCFrame
 
-    return (root.Position - targetCFrame.Position).Magnitude <= 5
+    return (root.Position - targetCFrame.Position).Magnitude <= MAX_TELEPORT_CHECK_DISTANCE
 end
 
+-- Views a target
 function vortex.view(target: Instance?): boolean
     local currentCamera = Workspace.CurrentCamera
     if not currentCamera then return false end
@@ -393,10 +421,12 @@ function vortex.view(target: Instance?): boolean
     return false
 end
 
+-- Views LocalPlayer
 function vortex.unview(): boolean
     return vortex.view(localPlayer)
 end
 
+-- Finds a tool from LocalPlayer's Backpack or character
 function vortex.findTool(player: Player, toolName: string): Tool?
     if not player or not toolName or toolName == "" then return nil end
 
@@ -411,17 +441,13 @@ function vortex.findTool(player: Player, toolName: string): Tool?
 end
 
 -- // Player & Entity Functions
+
+-- Finds a player based off their Username/DisplayName (Also has "me" and "random")
 function vortex.findPlayer(target: string?): Player?
     if not target or target == "" then return nil end
 
     local partial = string.lower(target)
     local allPlayers = Players:GetPlayers()
-
-    for _, player in allPlayers do
-        if player.Name:lower() == partial or player.DisplayName:lower() == partial then
-            return player
-        end
-    end
 
     if partial == "me" then
         return localPlayer
@@ -442,7 +468,7 @@ function vortex.findPlayer(target: string?): Player?
     end
 
     for _, player in allPlayers do
-        if isMatch(player.Name) or isMatch(player.DisplayName) then
+        if (player.Name:lower() == partial or player.DisplayName:lower() == partial) or (isMatch(player.Name) or isMatch(player.DisplayName)) then
             return player
         end
     end
@@ -450,11 +476,14 @@ function vortex.findPlayer(target: string?): Player?
     return nil
 end
 
+-- Gets the character of a player
 function vortex.getChar(player: Player): Model?
     return player and (player.Character :: Model?) or nil
 end
 
 -- // Check Character
+
+-- Checks whether the target is a character or a player
 local function checkCharacter(target: (Model | Player)?): Model?
     if not target then return nil end
     local character: Model
@@ -468,18 +497,21 @@ local function checkCharacter(target: (Model | Player)?): Model?
     return character or nil
 end
 
+-- Gets the root of a character/player
 function vortex.getRoot(target: (Model | Player)?): BasePart?
     if not target then return nil end
     local character = checkCharacter(target)
     return character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?) or nil
 end
 
+-- Gets the Humanoid of a character/player
 function vortex.getHumanoid(target: (Model | Player)?): Humanoid?
     if not target then return nil end
     local character = checkCharacter(target)
     return character and (character:FindFirstChildOfClass("Humanoid") :: Humanoid?) or nil
 end
 
+-- Breaks the LocalPlayer's Joints
 function vortex.breakJoints(): ()
     local character = vortex.getChar(localPlayer)
     if not character then return end
