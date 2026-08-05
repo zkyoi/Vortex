@@ -23,4 +23,4 @@ jobs:
           tag_name: ${{ github.event.inputs.tag_name }}
           files: src/main.luau
           generate_release_notes: true
-          prerelease: true
+          prerelease: false
