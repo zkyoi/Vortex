@@ -1,5 +1,5 @@
 local vortex = {}
-local _version: string = "v1.0.0"
+local _version: string = "v1.1.0-beta"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -57,6 +57,23 @@ export type initialNetless = {
     objects: (Instance | { Instance })?,
     initialTarget: (Vector3 | CFrame | Instance)
 }
+
+-- // Helper Functions
+local function FindVehicle(seat: VehicleSeat): Model?
+    local vehicleChecks = {
+        seat.Parent:FindFirstAncestorWhichIsA("Model"),
+        seat:FindFirstAncestor("Vehicle"), -- For old games
+        seat:FindFirstAncestorWhichIsA("Model") -- Universal fallback
+    }
+
+    for _, check in vehicleChecks do
+        if check and check:IsA("Model") then
+            return check
+        end
+    end
+
+    return nil
+end
 
 -- // Utility Functions
 function vortex.Disconnect(connection: RBXScriptConnection): boolean
@@ -551,6 +568,90 @@ function vortex.Unsit(): ()
         if not humanoid then return end
         humanoid:SetStateEnabled(seatedState, true)
     end)
+end
+
+function vortex.TeleportVehicle(target: (Vector3 | CFrame | Instance), useFallback: boolean?): boolean
+    local targetCFrame: CFrame? = vortex.GetCFrame(target)
+    if not targetCFrame then return false end
+    local character: Model? = vortex.GetChar(localPlayer)
+    if not character then return false end
+    local root: BasePart? = vortex.GetRoot(character)
+    if not root then return false end
+    local humanoid: Humanoid? = vortex.GetHumanoid(character)
+    if not humanoid then return false end
+    local seat: VehicleSeat? = humanoid.SeatPart
+    if not seat then return false end
+    local seatCFrame: CFrame = seat.CFrame
+
+    local vehicle: Model? = FindVehicle(seat)
+
+    if not vehicle then
+        vortex.ResetVelocity(seat)
+
+        seat.CFrame = targetCFrame
+        return true
+    end
+
+    if vehicle then
+        if not useFallback then
+            vehicle:PivotTo(targetCFrame)
+
+            return true
+        end
+
+        local jointData = {}
+        local gyros = {}
+
+        for _, joint in vehicle:GetDescendants() do
+            local jointParent = joint.Parent
+
+            if joint and joint:IsA("Rotate") and joint.Part0 and joint.Part1 then
+                table_insert(jointData, {
+                    part0 = joint.Part0,
+                    part1 = joint.Part1,
+                    relativePart0 = seatCFrame:ToObjectSpace(joint.Part0.CFrame),
+                    relativePart1 = seatCFrame:ToObjectSpace(joint.Part1.CFrame)
+                })
+            end
+
+            local gyro: BodyGyro? = jointParent:FindFirstChildOfClass("BodyGyro") or jointParent:FindFirstChild("BodyGyro")
+            if gyro then
+                table_insert(gyros, gyro)
+            end
+        end
+
+        vortex.ResetVelocity(seat)
+        vortex.TeleportTo(targetCFrame)
+
+        for _, data in jointData do
+            vortex.ResetVelocity(data.part0)
+            vortex.ResetVelocity(data.part1)
+
+            data.part0.CFrame = targetCFrame:ToWorldSpace(data.relativePart0)
+            data.part1.CFrame = targetCFrame:ToWorldSpace(data.relativePart1)
+        end
+
+        for _, gyro in gyros do
+            local relativeRotation: CFrame = seatCFrame.Rotation:Inverse() * gyro.CFrame.Rotation
+            gyro.CFrame = targetCFrame.Rotation * relativeRotation
+        end
+
+        task.defer(function()
+            if seat and seat.Parent then
+                vortex.ResetVelocity(seat)
+
+                for _, v in vehicle:GetDescendants() do
+                    if v:IsA("BasePart") then
+                        vortex.ResetVelocity(v)
+                    end
+                end
+            end
+        end)
+
+        return true
+    end
+
+    return false
 end
 
 -- // Methods
