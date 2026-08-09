@@ -67,7 +67,7 @@ local function FindVehicle(seat: VehicleSeat): Model?
     }
 
     for _, check in vehicleChecks do
-        if check and check:IsA("Model") then
+        if check and check:IsA("Model") and seat:IsDescendantOf(check) then
             return check
         end
     end
@@ -138,6 +138,32 @@ function vortex.GetBasePart(target: Instance?): BasePart?
     end
 
     return nil
+end
+
+function vortex.GetClosestPlayer(): Player?
+    local rootCFrame = vortex.GetCFrame(localPlayer)
+    if not rootCFrame then return nil end
+    local allPlayers = Players:GetPlayers()
+    local closest: Player
+    local closestDistance: number = math.huge
+
+    if #allPlayers <= 1 then
+        return nil
+    end
+
+    for _, player in allPlayers do
+        if player == localPlayer then continue end
+        local targetCFrame = vortex.GetCFrame(player)
+        if not targetCFrame then continue end
+
+        local distance = (rootCFrame.Position - targetCFrame.Position).Magnitude
+        if closestDistance > distance then
+            closest = player
+            closestDistance = distance
+        end
+    end
+
+    return closest
 end
 
 -- // Initialization Functions
@@ -587,13 +613,14 @@ function vortex.TeleportVehicle(target: (Vector3 | CFrame | Instance), useFallba
 
     if not vehicle then
         vortex.ResetVelocity(seat)
+        vortex.TeleportTo(targetCFrame)
 
-        seat.CFrame = targetCFrame
         return true
     end
 
     if vehicle then
-        if not useFallback then
+        if useFallback then
+            vortex.ResetVelocity(seat)
             vehicle:PivotTo(targetCFrame)
 
             return true
