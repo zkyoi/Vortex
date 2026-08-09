@@ -1,5 +1,5 @@
 local vortex = {}
-local _version: string = "v1.1.0-beta"
+local _version: string = "v1.1.0"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -210,10 +210,11 @@ function vortex.CreateInstance(data: instanceData): Instance
 end
 
 function vortex.CreateAttachment(parent: BasePart, name: string?): Attachment
-    local attachment: Attachment = Instance.new("Attachment")
-    attachment.Name = name or "VortexAttachment"
-
-    attachment.Parent = parent
+    local attachment: Attachment = vortex.CreateInstance({
+        instance = "Attachment",
+        name = name or "VortexAttachment",
+        parent = parent
+    })
 
     return attachment
 end
@@ -403,6 +404,13 @@ function vortex.TeleportTo(target: (Vector3 | CFrame | Instance)): boolean
     if not root or not targetCFrame then return false end
 
     vortex.ResetVelocity(root)
+
+    for _, v in root:GetChildren() do
+        if v:IsA("BodyVelocity") or v:IsA("BodyForce") or v:IsA("LinearVelocity") then
+            v:Destroy()
+        end
+    end
+
     root.CFrame = targetCFrame
 
     return (root.Position - targetCFrame.Position).Magnitude <= MAX_TELEPORT_CHECK_DISTANCE
