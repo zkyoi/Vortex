@@ -1,5 +1,11 @@
+--[[
+    Vortex
+    Copyright (c) 2026 zkyoi
+    Licensed under the MIT License
+]]--
+
 local vortex = {}
-local _version: string = "v1.1.1"
+local _version: string = "v1.1.2-beta"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -481,11 +487,11 @@ function vortex.FindTool(player: Player, toolName: string): Tool?
     local CheckContainer = function(container: Instance?): Tool?
         if not container then return nil end
 
-        local item = container:FindFirstChild(toolName)
+        local item: Tool? = container:FindFirstChild(toolName)
 
         if not item then
             for _, v in container:GetChildren() do
-                if string.find(v.Name, toolName) then
+                if v and string.find(v.Name:lower(), toolName:lower()) then
                     item = v
                     break
                 end
