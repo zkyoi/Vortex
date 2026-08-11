@@ -5,7 +5,7 @@
 ]]--
 
 local vortex = {}
-local _version: string = "v1.1.2-beta"
+local _version: string = "v1.2.0"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -50,7 +50,7 @@ export type tweenData = {
 export type instanceData = {
     instance: string,
     name: string?,
-    values: { [string]: any? },
+    values: { [string]: any? }?,
     parent: Instance?
 }
 
@@ -173,19 +173,19 @@ function vortex.GetClosestPlayer(): Player?
 end
 
 -- // Initialization Functions
-function vortex.CreateTimer(duration: number?): () -> timerData
-    duration = math.max(duration or DEFAULT_TIMER_DURATION, 0.001)
+function vortex.CreateTimer(durationSeconds: number?): () -> timerData
+    durationSeconds = math.max(durationSeconds or DEFAULT_TIMER_DURATION, 0.001)
 
     local startTime: number = os_clock()
 
     return function(): timerData
         local elapsedTime: number = os_clock() - startTime
-        local alpha: number = math_clamp(elapsedTime / duration, 0, 1)
+        local alpha: number = math_clamp(elapsedTime / durationSeconds, 0, 1)
 
         return {
             alpha = alpha,
             elapsedTime = elapsedTime,
-            isFinished = elapsedTime >= duration
+            isFinished = elapsedTime >= durationSeconds
         }
     end
 end
@@ -225,9 +225,9 @@ function vortex.CreateAttachment(parent: BasePart, name: string?): Attachment
     return attachment
 end
 
-function vortex.SimulationBoost(radius: number?, interval: number?): { stop: () -> () }?
+function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { stop: () -> () }?
     if not sethiddenproperty then return nil end
-    interval = interval or DEFAULT_SIMULATION_INTERVAL
+    intervalSeconds = intervalSeconds or DEFAULT_SIMULATION_INTERVAL
     radius = radius or DEFAULT_SIMULATION_RADIUS
     local isRunning: boolean = true
 
@@ -240,7 +240,7 @@ function vortex.SimulationBoost(radius: number?, interval: number?): { stop: () 
                 sethiddenproperty(localPlayer, "SimulationRadius", radius)
                 sethiddenproperty(localPlayer, "MaximumSimulationRadius", radius)
             end)
-            task.wait(interval)
+            task.wait(intervalSeconds)
         end
     end)
 
