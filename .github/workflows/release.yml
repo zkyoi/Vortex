@@ -1,12 +1,13 @@
-name: Manual Release
+name: Draft Release
 
 on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Version tag to release (e.g. v1.0.0)"
+        description: "Version tag to draft release (e.g. v1.0.0)"
         required: true
         default: "v1.0.0"
+        type: string
 
 jobs:
   build:
@@ -16,11 +17,16 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Create GitHub Release and Upload Asset
+      
+      - name: Create Github Release and Upload Asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag_name }}
-          files: src/main.luau
+          tag_name: ${{ inputs.tag_name }}
+          name: "Release ${{ inputs.tag_name }}"
+          files: |
+            src/main.lua
+            docs/api.md
+          fail_on_unmatched_files: true
           generate_release_notes: true
           prerelease: false
+          draft: true
