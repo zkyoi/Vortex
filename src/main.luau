@@ -38,6 +38,7 @@ vortex.activeNetless = {}
 vortex.debugLogs = {} :: { logEntry }
 vortex.debugMode = false
 
+-- // Clean up
 local currentSession = {
     connections = {},
     threads = {},
@@ -50,6 +51,7 @@ local DEFAULT_TIMER_DURATION: number = 1
 local DEFAULT_SIMULATION_INTERVAL: number = 10
 local DEFAULT_SIMULATION_RADIUS: number = 10000
 local MAX_TELEPORT_CHECK_DISTANCE: number = 5
+local TWEEN_SPEED = 1
 
 local NETLESS_VECTOR: Vector3 = Vector3.new(-30, 0, 0)
 
@@ -91,7 +93,7 @@ export type logEntry = {
 
 -- // Helper Functions
 local function Log(message: string, logFunc: string?, hide: boolean?, custom: string?): ()
-    local messageString = tostring(message)
+    local messageString: string = tostring(message)
     local lowerFunc: string = (logFunc and string_lower(logFunc)) or "p"
     local hideLog: boolean = hide or false
     local customLog: string = custom or "[Vortex]: "
@@ -162,12 +164,14 @@ function vortex.Disconnect(connection: RBXScriptConnection): boolean
     return false
 end
 
-function vortex.ResetVelocity(part: BasePart): ()
+function vortex.ResetVelocity(part: BasePart, clearForces: boolean?): ()
     if not part or not part:IsA("BasePart") then Log("Object is not a BasePart!", "w", false) return end
 
-    for _, v in part:GetChildren() do
-        if v:IsA("BodyVelocity") or v:IsA("BodyForce") or v:IsA("LinearVelocity") then
-            v:Destroy()
+    if clearForces then
+        for _, v in part:GetChildren() do
+            if v:IsA("BodyVelocity") or v:IsA("BodyForce") or v:IsA("LinearVelocity") then
+                v:Destroy()
+            end
         end
     end
 
@@ -514,14 +518,30 @@ function vortex.NetlessAlign(data): netlessData?
 end
 
 -- // Core Functions
-function vortex.TeleportTo(target: (Vector3 | CFrame | Instance)): boolean
+function vortex.TeleportTo(target: (Vector3 | CFrame | Instance), useTween: boolean?, tweenSpeed: number?): boolean
     local root: BasePart? = vortex.GetRoot(localPlayer)
     local targetCFrame: CFrame? = vortex.GetCFrame(target)
     if not root or not targetCFrame then Log("Failed to find root or its CFrame!", "w", false) return false end
+    tweenSpeed = tweenSpeed or TWEEN_SPEED
 
     vortex.ResetVelocity(root)
 
-    root.CFrame = targetCFrame
+    if useTween then
+        local tween: Tween = vortex.CreateTween({
+            instance = root,
+            tweenInfo = TweenInfo.new(
+                tweenSpeed,
+                Enum.EasingStyle.Linear
+            ),
+            properties = {
+                CFrame = targetCFrame
+            }
+        })
+        tween:Play()
+        tween.Completed:Wait()
+    else
+        root.CFrame = targetCFrame
+    end
 
     return (root.Position - targetCFrame.Position).Magnitude <= MAX_TELEPORT_CHECK_DISTANCE
 end
