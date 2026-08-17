@@ -144,6 +144,7 @@ end
 
 -- // Checks
 local SetHidden = Missing("function", sethiddenproperty or sethiddenprop)
+local IsNetworkOwner = Missing("function", isnetworkowner)
 
 -- // Utility Functions
 function vortex.Disconnect(connection: RBXScriptConnection): boolean
@@ -374,6 +375,7 @@ function vortex.NetlessAlign(data): netlessData?
     local anchorAttachment: Attachment = vortex.CreateAttachment(targetAnchor)
 
     local VECTOR = NETLESS_VECTOR
+    local multipliedVector: number = 1.5
 
     local managedParts: { BasePart } = {}
     local activeConstraints: { Instance } = {}
@@ -489,8 +491,15 @@ function vortex.NetlessAlign(data): netlessData?
 
     conn = RunService.Heartbeat:Connect(function()
         for _, part in managedParts do
-            if part and part.Parent then
-                part.AssemblyLinearVelocity = VECTOR
+            if not part or not part.Parent then continue end
+            part.AssemblyLinearVelocity = VECTOR
+            part.AssemblyAngularVelocity = Vector3.zero
+
+            if IsNetworkOwner then
+                local isOwner = IsNetworkOwner(part)
+                if not isOwner then
+                    part.AssemblyLinearVelocity = VECTOR * multipliedVector
+                end
             end
         end
     end)
