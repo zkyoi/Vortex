@@ -13,6 +13,8 @@ local os_time = os.time
 local math_clamp = math.clamp
 local table_insert = table.insert
 local table_clear = table.clear
+local table_find = table.find
+local table_remove = table.remove
 local string_sub = string.sub
 local string_lower = string.lower
 local string_format = string.format
@@ -145,24 +147,35 @@ local SetHidden = Missing("function", sethiddenproperty or sethiddenprop)
 
 -- // Utility Functions
 function vortex.Disconnect(connection: RBXScriptConnection): boolean
-    if connection and connection.Connected then
+    if not connection then
+        Log("Failed to disconnect, object is nil!")
+        return false
+    end
+
+    if connection.Connected then
         connection:Disconnect()
         return true
     end
 
-    Log("Failed to disconnect a connection!", "w", false)
+    Log("Connection was already disconnected or inactive.", "p", false)
     return false
 end
 
 function vortex.ResetVelocity(part: BasePart): ()
     if not part or not part:IsA("BasePart") then Log("Object is not a BasePart!", "w", false) return end
 
+    for _, v in part:GetChildren() do
+        if v:IsA("BodyVelocity") or v:IsA("BodyForce") or v:IsA("LinearVelocity") then
+            v:Destroy()
+        end
+    end
+
     part.AssemblyLinearVelocity = Vector3.zero
     part.AssemblyAngularVelocity = Vector3.zero
 end
 
 function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
-    if not target then Log("Failed to find target!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false) return nil end
     local targetType: string = typeof(target)
 
     if targetType == "CFrame" then
@@ -191,7 +204,7 @@ function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
 end
 
 function vortex.GetBasePart(target: Instance?): BasePart?
-    if not target then Log("Failed to find target!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false) return nil end
 
     if target:IsA("BasePart") then
         return target :: BasePart
@@ -317,6 +330,11 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
         if not isRunning then Log("Failed to stop, not currently running!", "w", false) return end
         isRunning = false
 
+        local index = table_find(currentSession.controllers, controller)
+        if index then
+            table_remove(currentSession.controllers, index)
+        end
+
         if thread then
             task.cancel(thread)
         end
@@ -378,6 +396,11 @@ function vortex.NetlessAlign(data): netlessData?
         if not isRunning then Log("Failed to stop, not currently running!", "w", false) return end
         isRunning = false
 
+        local index = table_find(currentSession.controllers, controller)
+        if index then
+            table_remove(currentSession.controllers, index)
+        end
+
         if conn then
             vortex.Disconnect(conn)
         end
@@ -420,7 +443,10 @@ function vortex.NetlessAlign(data): netlessData?
                     Attachment0 = objectAttachment,
                     Attachment1 = anchorAttachment,
                     MaxForce = math.huge,
-                    Responsiveness = 100
+                    MaxVelocity = math.huge,
+                    Responsiveness = 200,
+                    RigidityEnabled = false,
+                    ReactionForceEnabled = false
                 }
             }) :: AlignPosition
 
@@ -432,7 +458,10 @@ function vortex.NetlessAlign(data): netlessData?
                     Attachment0 = objectAttachment,
                     Attachment1 = anchorAttachment,
                     MaxTorque = math.huge,
-                    Responsiveness = 100
+                    MaxAngularVelocity = math.huge,
+                    Responsiveness = 200,
+                    RigidityEnabled = false,
+                    ReactionTorqueEnabled = false
                 }
             }) :: AlignOrientation
 
@@ -482,12 +511,6 @@ function vortex.TeleportTo(target: (Vector3 | CFrame | Instance)): boolean
     if not root or not targetCFrame then Log("Failed to find root or its CFrame!", "w", false) return false end
 
     vortex.ResetVelocity(root)
-
-    for _, v in root:GetChildren() do
-        if v:IsA("BodyVelocity") or v:IsA("BodyForce") or v:IsA("LinearVelocity") then
-            v:Destroy()
-        end
-    end
 
     root.CFrame = targetCFrame
 
@@ -600,7 +623,7 @@ end
 
 -- // Player & Entity Functions
 function vortex.FindPlayer(target: string?): Player?
-    if not target or target == "" then Log("Failed to find target!", "w", false) return nil end
+    if not target or target == "" then Log("Target is nil or blank string!", "w", false) return nil end
 
     local partial: string = string_lower(target)
     local allPlayers = Players:GetPlayers()
@@ -639,7 +662,7 @@ end
 
 -- // Check Character
 local function CheckCharacter(target: (Model | Player)?): Model?
-    if not target then Log("Failed to find target!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false) return nil end
 
     if target:IsA("Model") then
         return target :: Model
@@ -652,13 +675,13 @@ local function CheckCharacter(target: (Model | Player)?): Model?
 end
 
 function vortex.GetRoot(target: (Model | Player)?): BasePart?
-    if not target then Log("Failed to find target!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false) return nil end
     local character: Model? = CheckCharacter(target)
     return character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?)
 end
 
 function vortex.GetHumanoid(target: (Model | Player)?): Humanoid?
-    if not target then Log("Failed to find target!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false) return nil end
     local character: Model? = CheckCharacter(target)
     return character and (character:FindFirstChildOfClass("Humanoid") :: Humanoid?)
 end
@@ -790,7 +813,9 @@ function vortex.CleanUp(): ()
 
     for i=#sessionConnections, 1, -1 do
         local connection = sessionConnections[i]
-        vortex.Disconnect(connection)
+        if typeof(connection) == "RBXScriptConnection" then
+            vortex.Disconnect(connection)
+        end
         sessionConnections[i] = nil
     end
 
@@ -815,6 +840,7 @@ function vortex.CleanUp(): ()
         if controller and typeof(controller.Stop) == "function" then
             controller.Stop()
         end
+        sessionControllers[i] = nil
     end
 end
 
