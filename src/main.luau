@@ -36,7 +36,6 @@ vortex.activeNetless = {}
 vortex.debugLogs = {} :: { logEntry }
 vortex.debugMode = false
 
--- This handles cleanup
 local currentSession = {
     connections = {},
     threads = {},
@@ -125,10 +124,10 @@ end
 
 local function FindVehicle(seat: VehicleSeat): Model?
     local vehicleChecks = {
-        seat:FindFirstAncestor("Body").Parent,
+        seat:FindFirstAncestor("Body") and seat:FindFirstAncestor("Body").Parent,
         seat:FindFirstAncestor("Car"),
-        seat:FindFirstAncestor("Vehicle"), -- For old games
-        seat:FindFirstAncestorWhichIsA("Model") -- Universal fallback
+        seat:FindFirstAncestor("Vehicle"),
+        seat:FindFirstAncestorWhichIsA("Model")
     }
 
     for _, check in vehicleChecks do
@@ -582,7 +581,7 @@ end
 
 function vortex.EquipTool(tool: Tool): Tool?
     local character: Model? = vortex.GetChar(localPlayer)
-    if not character then Log("Failed to find character!", "w", false) return nil end
+    if not character then Log("Failed to find Character!", "w", false) return nil end
     local humanoid: Humanoid? = vortex.GetHumanoid(character)
     if not humanoid then Log("Failed to find Humanoid!", "w", false) return nil end
 
@@ -593,15 +592,7 @@ function vortex.EquipTool(tool: Tool): Tool?
 end
 
 function vortex.DropTool(tool: Tool): Tool?
-    local character: Model? = vortex.GetChar(localPlayer)
-    if not character then Log("Failed to find character!", "w", false) return nil end
-    local humanoid: Humanoid? = vortex.GetHumanoid(character)
-    if not humanoid then Log("Failed to find Humanoid!", "w", false) return nil end
-
-    if tool.Parent ~= character then
-        vortex.EquipTool(tool)
-    end
-
+    vortex.EquipTool(tool)
     tool.Parent = Workspace
 
     return tool
@@ -634,7 +625,7 @@ function vortex.FindPlayer(target: string?): Player?
 
     for _, player in allPlayers do
         if (IsMatch(player.Name) or IsMatch(player.DisplayName)) then
-            return player -- This returns the first match
+            return player
         end
     end
 
@@ -674,7 +665,7 @@ end
 
 function vortex.BreakJoints(): ()
     local character: Model? = vortex.GetChar(localPlayer)
-    if not character then Log("Failed to find character!", "w", false) return end
+    if not character then Log("Failed to find Character!", "w", false) return end
     for _, joint in character:GetDescendants() do
         if joint:IsA("Motor6D") then
             joint:Destroy()
@@ -685,7 +676,7 @@ end
 function vortex.Unsit(): ()
     local humanoid: Humanoid = vortex.GetHumanoid(localPlayer)
     if not humanoid then Log("Failed to find Humanoid!", "w", false) return end
-    if not humanoid.SeatPart then Log("Humanoid is not currently sitting!", "w", false) return end
+    if not humanoid.Sit then Log("Humanoid is not currently sitting!", "w", false) return end
 
     local seatedState: EnumItem = Enum.HumanoidStateType.Seated
     if not seatedState then Log("Failed to find HumanoidStateType.Seated!", "w", false) return end
@@ -703,7 +694,7 @@ function vortex.TeleportVehicle(target: (Vector3 | CFrame | Instance), useFallba
     local targetCFrame: CFrame? = vortex.GetCFrame(target)
     if not targetCFrame then Log("Failed to find target CFrame!", "w", false) return false end
     local character: Model? = vortex.GetChar(localPlayer)
-    if not character then Log("Failed to find character!", "w", false) return false end
+    if not character then Log("Failed to find Character!", "w", false) return false end
     local root: BasePart? = vortex.GetRoot(character)
     if not root then Log("Failed to find root!", "w", false) return false end
     local humanoid: Humanoid? = vortex.GetHumanoid(character)
@@ -786,17 +777,10 @@ function vortex.TeleportVehicle(target: (Vector3 | CFrame | Instance), useFallba
 end
 
 -- // Methods
-function vortex.QuickTest(): ()
-    Log("\n", "p", true, "")
-    Log("== Vortex QuickTest ==", "p", true, "")
-    -- Not finished add something future me :/
-end
-
 function vortex:GetVersion(): string
     return _version
 end
 
--- It's not required but highly recommended once you're done using the library
 function vortex.CleanUp(): ()
     Log("Cleaning up.", "p", false)
     local sessionConnections = currentSession.connections
@@ -886,7 +870,7 @@ function vortex.IsStudio(): boolean
 end
 
 function vortex.GenerateUUID(): string
-    return HttpService:GenerateGUID(false)
+    return HttpService:GenerateGUID(false) :: string
 end
 
 return vortex
