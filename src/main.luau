@@ -10,15 +10,39 @@ local _version: string = "v1.3.0-beta"
 -- // Local Cache
 local os_clock = os.clock
 local os_time = os.time
+
 local math_clamp = math.clamp
+local math_max = math.max
+local math_random = math.random
+local math_huge = math.huge
+
 local table_insert = table.insert
 local table_clear = table.clear
 local table_find = table.find
 local table_remove = table.remove
+
 local string_sub = string.sub
 local string_lower = string.lower
 local string_format = string.format
+local string_find = string.find
+local tostring = tostring
+
+local task_spawn = task.spawn
+local task_delay = task.delay
+local task_cancel = task.cancel
+local task_defer = task.defer
+local task_wait = task.wait
+local table_clone = table.clone
+
+local print = print
+local warn = warn
+local error = error
+
 local typeof = typeof
+local pcall = pcall
+local Vector3_zero = Vector3.zero
+local CFrame_identity = CFrame.identity
+
 
 -- // Services
 local HttpService = game:GetService("HttpService")
@@ -118,12 +142,12 @@ local function Log(message: string, logFunc: string?, hide: boolean?, custom: st
     end
 end
 
-local function Missing(type, object, fallback)
-    if typeof(object) == type then
-        return object
+local function Missing<fallbackType>(expectedType: string, object: any, fallback: fallbackType?): fallbackType
+    if typeof(object) ~= expectedType then
+        return fallback
     end
 
-    return fallback
+    return object :: any
 end
 
 local function FindVehicle(seat: VehicleSeat): Model?
@@ -175,8 +199,8 @@ function vortex.ResetVelocity(part: BasePart, clearForces: boolean?): ()
         end
     end
 
-    part.AssemblyLinearVelocity = Vector3.zero
-    part.AssemblyAngularVelocity = Vector3.zero
+    part.AssemblyLinearVelocity = Vector3_zero
+    part.AssemblyAngularVelocity = Vector3_zero
 end
 
 function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
@@ -234,7 +258,7 @@ function vortex.GetClosestPlayer(): Player?
     if not rootCFrame then Log("Failed to get root CFrame!", "w", false) return nil end
     local allPlayers = Players:GetPlayers()
     local closest: Player
-    local closestDistance: number = math.huge
+    local closestDistance: number = math_huge
 
     if #allPlayers <= 1 then
         Log("Failed to find other players!", "w", false)
@@ -258,7 +282,7 @@ end
 
 -- // Initialization Functions
 function vortex.CreateTimer(durationSeconds: number?): () -> timerData
-    durationSeconds = math.max(durationSeconds or DEFAULT_TIMER_DURATION, 0.001)
+    durationSeconds = math_max(durationSeconds or DEFAULT_TIMER_DURATION, 0.001)
 
     local startTime: number = os_clock()
 
@@ -317,7 +341,7 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
     local isRunning: boolean = true
 
     local thread: thread?
-    thread = task.spawn(function()
+    thread = task_spawn(function()
         while isRunning do
             if not localPlayer or not localPlayer.Parent then Log("Failed to find the LocalPlayer!", "w", false) break end
 
@@ -325,7 +349,7 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
                 SetHidden(localPlayer, "SimulationRadius", radius)
                 SetHidden(localPlayer, "MaximumSimulationRadius", radius)
             end)
-            task.wait(intervalSeconds)
+            task_wait(intervalSeconds)
         end
     end)
     table_insert(currentSession.threads, thread)
@@ -341,7 +365,7 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
         end
 
         if thread then
-            task.cancel(thread)
+            task_cancel(thread)
         end
     end
 
@@ -349,7 +373,7 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
     return controller
 end
 
-function vortex.NetlessAlign(data): netlessData?
+function vortex.NetlessAlign(data: initialNetless): netlessData?
     if not data then Log("Please specify data!", "w", false) return nil end
 
     local initialTarget: (Vector3 | CFrame | Instance) = data.initialTarget
@@ -364,7 +388,7 @@ function vortex.NetlessAlign(data): netlessData?
         objectsList = objects
     end
 
-    local targetCFrame: CFrame = vortex.GetCFrame(initialTarget) or CFrame.identity
+    local targetCFrame: CFrame = vortex.GetCFrame(initialTarget) or CFrame_identity
     local targetAnchor: BasePart = vortex.CreateInstance({
         instance = "Part",
         name = "NetlessAnchor",
@@ -448,8 +472,8 @@ function vortex.NetlessAlign(data): netlessData?
                     Mode = Enum.PositionAlignmentMode.TwoAttachment,
                     Attachment0 = objectAttachment,
                     Attachment1 = anchorAttachment,
-                    MaxForce = math.huge,
-                    MaxVelocity = math.huge,
+                    MaxForce = math_huge,
+                    MaxVelocity = math_huge,
                     Responsiveness = 200,
                     RigidityEnabled = false,
                     ReactionForceEnabled = false
@@ -463,8 +487,8 @@ function vortex.NetlessAlign(data): netlessData?
                     Mode = Enum.OrientationAlignmentMode.TwoAttachment,
                     Attachment0 = objectAttachment,
                     Attachment1 = anchorAttachment,
-                    MaxTorque = math.huge,
-                    MaxAngularVelocity = math.huge,
+                    MaxTorque = math_huge,
+                    MaxAngularVelocity = math_huge,
                     Responsiveness = 200,
                     RigidityEnabled = false,
                     ReactionTorqueEnabled = false
@@ -493,20 +517,26 @@ function vortex.NetlessAlign(data): netlessData?
         return nil
     end
 
-    conn = RunService.Heartbeat:Connect(function()
-        for _, part in managedParts do
-            if not part or not part.Parent then continue end
-            part.AssemblyLinearVelocity = VECTOR
-            part.AssemblyAngularVelocity = Vector3.zero
-
-            if IsNetworkOwner then
-                local isOwner = IsNetworkOwner(part)
-                if not isOwner then
+    if IsNetworkOwner then
+        conn = RunService.Heartbeat:Connect(function()
+            for _, part in managedParts do
+                if not part or not part.Parent then continue end
+                if IsNetworkOwner(part) then
+                    part.AssemblyLinearVelocity = VECTOR
+                else
                     part.AssemblyLinearVelocity = VECTOR * multipliedVector
                 end
+                part.AssemblyAngularVelocity = Vector3_zero
             end
-        end
-    end)
+        end)
+    else
+        conn = RunService.Heartbeat:Connect(function()
+            for _, part in managedParts do
+                part.AssemblyLinearVelocity = VECTOR
+                part.AssemblyAngularVelocity = Vector3_zero
+            end
+        end)
+    end
     table_insert(currentSession.connections, conn)
 
     for _, part in managedParts do
@@ -618,7 +648,7 @@ function vortex.FindTool(player: Player, toolName: string): Tool?
 
         if not item then
             for _, v in container:GetChildren() do
-                if v and string.find(v.Name:lower(), toolName:lower()) then
+                if v and string_find(v.Name:lower(), toolName:lower()) then
                     item = v
                     break
                 end
@@ -668,7 +698,7 @@ function vortex.FindPlayer(target: string?): Player?
             end
         end
 
-        return #others > 0 and others[math.random(1, #others)]
+        return #others > 0 and others[math_random(1, #others)]
     end
 
     local IsMatch = function(name: string): boolean
@@ -736,7 +766,7 @@ function vortex.Unsit(): ()
     humanoid.Sit = false
     humanoid:SetStateEnabled(seatedState, false)
 
-    task.delay(0.5, function()
+    task_delay(0.5, function()
         if not humanoid then Log("Failed to find Humanoid!", "w", false) return end
         humanoid:SetStateEnabled(seatedState, true)
     end)
@@ -809,7 +839,7 @@ function vortex.TeleportVehicle(target: (Vector3 | CFrame | Instance), useFallba
             gyro.CFrame = targetCFrame.Rotation * relativeRotation
         end
 
-        task.defer(function()
+        task_defer(function()
             if seat and seat.Parent then
                 vortex.ResetVelocity(seat)
 
@@ -845,43 +875,39 @@ function vortex.CleanUp(): ()
         if typeof(connection) == "RBXScriptConnection" then
             vortex.Disconnect(connection)
         end
-        sessionConnections[i] = nil
     end
+    table_clear(sessionConnections)
 
     for i=#sessionThreads, 1, -1 do
         local thread = sessionThreads[i]
         if typeof(thread) == "thread" then
-            task.cancel(thread)
+            task_cancel(thread)
         end
-        sessionThreads[i] = nil
     end
+    table_clear(sessionThreads)
 
     for i=#sessionInstances, 1, -1 do
         local instance = sessionInstances[i]
         if typeof(instance) == "Instance" then
             instance:Destroy()
         end
-        sessionInstances[i] = nil
     end
+    table_clear(sessionInstances)
 
     for i=#sessionControllers, 1, -1 do
         local controller = sessionControllers[i]
         if controller and typeof(controller.Stop) == "function" then
             controller.Stop()
         end
-        sessionControllers[i] = nil
     end
+    table_clear(sessionControllers)
 end
 
 function vortex.DumpLogs(clear: boolean?): { string }
     Log("Dumping logs.", "p", true)
-    local logsCopy = {}
-    for _, log in vortex.debugLogs do
-        table_insert(logsCopy, log)
-        local logType: string = log.type
-        local message: string = log.text
-
-        Log(message, logType, true)
+    local logsCopy = table_clone(vortex.debugLogs)
+    for _, log in logsCopy do
+        Log(log.text, log.type, true)
     end
 
     if clear then
