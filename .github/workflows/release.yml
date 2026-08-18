@@ -24,7 +24,7 @@ jobs:
           tag_name: ${{ inputs.tag_name }}
           name: "Release ${{ inputs.tag_name }}"
           files: |
-            src/main.lua
+            src/main.luau
             docs/api.md
           fail_on_unmatched_files: true
           generate_release_notes: true
