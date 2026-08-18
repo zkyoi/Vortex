@@ -7,7 +7,7 @@ In order to use Vortex library, you need to first load the module.
 You can either load from a fixed version, which is highly recommended.
 
 ```lua
-local _version = "v1.3.0" -- Latest stable repository version
+local _version = "v1.3.1" -- Latest stable repository version
 local vortex = loadstring(game:HttpGet("https://github.com/zkyoi/Vortex/releases/download/" .. _version .. "/main.luau", true))()
 
 -- Gets the current version
