@@ -1,5 +1,44 @@
 # Vortex API
 
+## Introduction
+
+In order to use Vortex library, you need to first load the module.
+
+You can either load from a fixed version, which is highly recommended.
+
+```lua
+local _version = "v1.3.0" -- Latest stable repository version
+local vortex = loadstring(game:HttpGet("https://github.com/zkyoi/Vortex/releases/download/" .. _version .. "/main.luau", true))()
+
+-- Gets the current version
+print(vortex:GetVersion())
+```
+
+You can load from the latest version.
+
+```lua
+local vortex = loadstring(game:HttpGet("https://github.com/zkyoi/Vortex/releases/latest/download/main.luau", true))()
+
+-- Gets the current version
+print(vortex:GetVersion())
+```
+
+Or you can load directly from the repository.
+
+```lua
+local vortex = loadstring(game:HttpGet("https://raw.githubusercontent.com/zkyoi/Vortex/refs/heads/main/src/main.luau", true))()
+
+-- Gets the current version
+print(vortex:GetVersion())
+```
+
+> [!CAUTION]
+> This is not recommended and prone to errors!
+
+Once you have chosen a method to load the library, you're ready to go!
+
+Just read the API to learn how to use specific functions, variables, etc.
+
 ## Utility Functions
 
 ### vortex.Disconnect
@@ -51,7 +90,7 @@ end
 Sets the AssemblyLinearVelocity and AssemblyAngularVelocity of a BasePart to Vector3.zero.
 
 ```lua
-function vortex.ResetVelocity(part: BasePart): ()
+function vortex.ResetVelocity(part: BasePart, clearForces: boolean?): ()
 ```
 
 ---
@@ -61,6 +100,7 @@ function vortex.ResetVelocity(part: BasePart): ()
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `part` | `BasePart` | Yes | The BasePart that is affected |
+| `clearForces` | `boolean` | No | Clears all forces on the BasePart. |
 
 ## Returns
 `None`
@@ -101,7 +141,7 @@ function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
 ## Returns
 | Type | Description |
 | :--- | :--- |
-| `CFrame` | If successful returns 'CFrame' and if it fails returns 'nil' |
+| `CFrame` | If successful returns 'CFrame' and if it fails returns 'nil'. |
 
 ---
 
@@ -118,7 +158,7 @@ if root then
     if rootCFrame then
         print(rootCFrame)
     else
-        warn("Failed to get root's CFrame!")
+        warn("Failed to get roots CFrame!")
     end
 end
 ```
@@ -144,7 +184,7 @@ function vortex.GetBasePart(target: Instance?): BasePart?
 ## Returns
 | Type | Description |
 | :--- | :--- |
-| `BasePart` | If successful returns 'BasePart' and if it fails returns 'nil' |
+| `BasePart` | If successful returns 'BasePart' and if it fails returns 'nil'. |
 
 ---
 
@@ -180,7 +220,7 @@ function vortex.GetClosestPlayer(): Player?
 ## Returns
 | Type | Description |
 | :--- | :--- |
-| `Player` | If successful returns a 'Player' and if it fails returns 'nil' |
+| `Player` | If successful returns a 'Player' and if it fails returns 'nil'. |
 
 ---
 
@@ -275,7 +315,7 @@ function vortex.CreateTween(data: tweenData): Tween
 ## Returns
 | Type | Description |
 | :--- | :--- |
-| `Tween` | Creates then returns the created Tween |
+| `Tween` | Creates then returns the created Tween. |
 
 ## Types
 ```lua
@@ -307,9 +347,9 @@ if root then
             properties = {
                 CFrame = CFrame.new(rootCFrame.Position + Vector3.new(0, 10, 0))
             }
-        }):Play()
+        }):Play() -- Creates and plays the tween
     else
-        warn("Failed to get root's CFrame!")
+        warn("Failed to get roots CFrame!")
     end
 end
 ```
@@ -335,7 +375,7 @@ function vortex.CreateInstance(data: instanceData): Instance
 ## Returns
 | Type | Description |
 | :--- | :--- |
-| `Instance` | Creates then returns the created Instance |
+| `Instance` | Creates then returns the created Instance. |
 
 ## Types
 ```lua
@@ -356,7 +396,45 @@ This example will create a part in the workspace.
 vortex.CreateInstance({
     instance = "Part",
     parent = game:GetService("Workspace")
+}) -- Creates an Instance of a 'part'
+```
+
+---
+
+### vortex.CreateAttachment
+
+Creates an Attachment.
+
+```lua
+function vortex.CreateAttachment(parent: BasePart, name: string?): Attachment
+```
+
+---
+
+## Parameters
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `parent` | `BasePart` | Yes | Where the attachment will be created. |
+| `name` | `string` | No | Name of the attachment. |
+
+## Returns
+| Type | Description |
+| :--- | :--- |
+| `Attachment` | Creates then returns the created Attachment. |
+
+---
+
+## Example
+
+This example will create a part in the workspace and then create an attachment in that part.
+```lua
+local part = vortex.CreateInstance({
+    instance = "Part",
+    parent = game:GetService("Workspace")
 })
+
+local attachment = vortex.CreateAttachment(part) -- Creates an attachment
 ```
 
 ---
