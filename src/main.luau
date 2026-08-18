@@ -5,7 +5,7 @@
 ]]--
 
 local vortex = {}
-local _version: string = "v1.3.0-beta"
+local _version: string = "v1.3.0"
 
 -- // Local Cache
 local os_clock = os.clock
