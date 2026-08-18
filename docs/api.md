@@ -438,3 +438,6 @@ local attachment = vortex.CreateAttachment(part) -- Creates an attachment
 ```
 
 ---
+
+> [!NOTE]
+> The documentation for this API is not currently finished!
