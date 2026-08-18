@@ -5,7 +5,7 @@
 ]]--
 
 local vortex = {}
-local _version: string = "v1.3.0"
+local _version: string = "v1.3.1"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -100,13 +100,17 @@ export type instanceData = {
 }
 
 export type netlessData = {
-    update: (Vector3 | CFrame | Instance) -> (),
-    stop: () -> ()
+    Update: (Vector3 | CFrame | Instance) -> (),
+    SetCanCollide: (boolean) -> (),
+    SetEnabled: (boolean) -> (),
+    Stop: () -> ()
 }
 
 export type initialNetless = {
     objects: (Instance | { Instance })?,
-    initialTarget: (Vector3 | CFrame | Instance)
+    initialTarget: (Vector3 | CFrame | Instance),
+    canCollide: boolean?,
+    enabled: boolean?
 }
 
 export type logEntry = {
@@ -177,6 +181,13 @@ function vortex.Disconnect(connection: RBXScriptConnection): boolean
     if not connection then
         Log("Failed to disconnect, object is nil!")
         return false
+    end
+
+    local sessionConnections = currentSession.connections
+    local currentConnection = table_find(currentSession.connections, connection)
+
+    if currentConnection then
+        table_remove(sessionConnections, currentConnection)
     end
 
     if connection.Connected then
@@ -380,6 +391,9 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     local objects: (Instance | { Instance })? = data.objects
     if not objects then Log("Failed to get objects from data!", "w", false) return nil end
 
+    local desiredCanCollide: boolean = data.canCollide == true
+    local isEnabled: boolean = data.enabled ~= false
+
     local objectsList: { Instance }
 
     if typeof(objects) == "Instance" then
@@ -413,12 +427,90 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     local isRunning: boolean = true
     local conn: RBXScriptConnection?
 
+    local function createNetlessVelocity(): ()
+        if conn then return end
+        
+        conn = RunService.Heartbeat:Connect(function()
+            for i=#managedParts, 1, -1 do
+                local part = managedParts[i]
+                if not part or not part.Parent then
+                    table_remove(managedParts, i)
+                    continue
+                end
+
+                if IsNetworkOwner and IsNetworkOwner(part) then
+                    part.AssemblyLinearVelocity = VECTOR
+                else
+                    part.AssemblyLinearVelocity = VECTOR * multipliedVector
+                end
+
+                part.AssemblyAngularVelocity = Vector3_zero
+            end
+        end)
+
+        if conn then
+            table_insert(currentSession.connections, conn)
+        end
+    end
+
     function controller.Update(newTarget: (Vector3 | CFrame | Instance)): ()
         if not isRunning then Log("Failed to update, not currently running!", "w", false) return end
 
         local newCFrame: CFrame? = vortex.GetCFrame(newTarget)
         if newCFrame then
             targetAnchor.CFrame = newCFrame
+        end
+    end
+
+    function controller.SetCanCollide(state: boolean): ()
+        if not isRunning then Log("Failed to set CanCollide, not currently running!", "w", false) return end
+        desiredCanCollide = state
+
+        for _, part in managedParts do
+            if part and part.Parent then
+                part.CanCollide = state
+            end
+        end
+    end
+
+    function controller.SetEnabled(state: boolean): ()
+        if not isRunning then Log("Failed to set enabled, not currently running!", "w", false) return end
+        if isEnabled == state then return end
+        isEnabled = state
+
+        if not isEnabled then
+            if conn then
+                vortex.Disconnect(conn)
+                conn = nil
+            end
+
+            for _, instance in activeConstraints do
+                if instance and instance:IsA("Constraint") then
+                    instance.Enabled = false
+                end
+            end
+
+            for _, part in managedParts do
+                if part and part.Parent and originalCollisions[part] ~= nil then
+                    part.CanCollide = originalCollisions[part]
+                end
+
+                vortex.ResetVelocity(part)
+            end
+        else
+            for _, instance in activeConstraints do
+                if instance and instance:IsA("Constraint") then
+                    instance.Enabled = true
+                end
+            end
+
+            for _, part in managedParts do
+                if part and part.Parent then
+                    part.CanCollide = desiredCanCollide
+                end
+            end
+
+            createNetlessVelocity()
         end
     end
 
@@ -461,7 +553,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
 
         if basePart and not basePart.Anchored then
             if vortex.activeNetless[basePart] then
-                vortex.activeNetless[basePart].stop()
+                vortex.activeNetless[basePart].Stop()
             end
 
             local objectAttachment: Attachment = vortex.CreateAttachment(basePart)
@@ -517,27 +609,9 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
         return nil
     end
 
-    if IsNetworkOwner then
-        conn = RunService.Heartbeat:Connect(function()
-            for _, part in managedParts do
-                if not part or not part.Parent then continue end
-                if IsNetworkOwner(part) then
-                    part.AssemblyLinearVelocity = VECTOR
-                else
-                    part.AssemblyLinearVelocity = VECTOR * multipliedVector
-                end
-                part.AssemblyAngularVelocity = Vector3_zero
-            end
-        end)
-    else
-        conn = RunService.Heartbeat:Connect(function()
-            for _, part in managedParts do
-                part.AssemblyLinearVelocity = VECTOR
-                part.AssemblyAngularVelocity = Vector3_zero
-            end
-        end)
+    if isEnabled then
+        createNetlessVelocity()
     end
-    table_insert(currentSession.connections, conn)
 
     for _, part in managedParts do
         vortex.activeNetless[part] = controller
