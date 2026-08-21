@@ -1,11 +1,11 @@
 --[[
-    Vortex
+    Vortex v1.3.2
     Copyright (c) 2026 zkyoi
-    Licensed under the MIT License
+    Licensed under the MIT License (MIT)
 ]]--
 
 local vortex = {}
-local _version: string = "v1.3.1"
+local _version: string = "v1.3.2"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -33,6 +33,7 @@ local task_cancel = task.cancel
 local task_defer = task.defer
 local task_wait = task.wait
 local table_clone = table.clone
+local table_concat = table.concat
 
 local print = print
 local warn = warn
@@ -61,6 +62,15 @@ vortex.activeNetless = {}
 -- // Debugging
 vortex.debugLogs = {} :: { logEntry }
 vortex.debugMode = false
+
+-- // Save System
+local fileSystem = {}
+
+local ROOT = "VortexLibrary/"
+local CONFIG = ROOT .. "configs/"
+
+fileSystem.ROOT = ROOT
+fileSystem.CONFIG = CONFIG
 
 -- // Clean up
 local currentSession = {
@@ -127,11 +137,8 @@ local function Log(message: string, logFunc: string?, hide: boolean?, custom: st
     local customLog: string = custom or "[Vortex]: "
 
     local activeLogger: (any) -> () = print
-    if lowerFunc == "w" then
-        activeLogger = warn
-    elseif lowerFunc == "e" then
-        activeLogger = error
-    end
+    if lowerFunc == "w" then activeLogger = warn
+    elseif lowerFunc == "e" then activeLogger = error end
 
     if not hideLog then
         table_insert(vortex.debugLogs, {
@@ -148,10 +155,10 @@ end
 
 local function Missing<fallbackType>(expectedType: string, object: any, fallback: fallbackType?): fallbackType
     if typeof(object) ~= expectedType then
-        return fallback
+        return fallback :: fallbackType
     end
 
-    return object :: any
+    return object :: fallbackType
 end
 
 local function FindVehicle(seat: VehicleSeat): Model?
@@ -172,9 +179,88 @@ local function FindVehicle(seat: VehicleSeat): Model?
     return nil
 end
 
--- // Checks
-local SetHidden = Missing("function", sethiddenproperty or sethiddenprop)
-local IsNetworkOwner = Missing("function", isnetworkowner)
+-- // Enviroment & Executor Safety Fallbacks
+
+-- // Reflection Library
+local SetHidden: ((Instance, string, any) -> (boolean))? = Missing("function", sethiddenproperty or sethiddenprop)
+local IsNetworkOwner: ((Instance) -> (boolean))? = Missing("function", isnetworkowner)
+
+-- // FileSystem Library
+local IsFolder: ((string) -> (boolean))? = Missing("function", isfolder)
+local MakeFolder: ((string) -> ())? = Missing("function", makefolder)
+local WriteFile: ((string, string) -> ())? = Missing("function", writefile)
+local IsFile: ((string) -> (boolean))? = Missing("function", isfile)
+local ReadFile: ((string) -> (string))? = Missing("function", readfile)
+local DeleteFile: ((string) -> ())? = Missing("function", delfile)
+
+-- // Make Config Folder
+if not IsFolder(CONFIG) then
+    Log("Failed to find Config folder, attempting to create one!", "w", false)
+    MakeFolder(CONFIG)
+end
+
+-- // Save & Load Functions
+function fileSystem.SaveConfig(name: string, tbl: { [any]: any }): boolean
+    if not WriteFile then Log("WriteFile function is missing from executor enviroment!", "w", false) return false end
+
+    local lines = {}
+    for k, v in tbl do
+        table_insert(lines, string_format("%s=%s", tostring(k), tostring(v)))
+    end
+
+    local success, err = pcall(WriteFile, CONFIG .. name .. ".cfg", table_concat(lines, "\n"))
+    if not success then Log(string_format("Failed to save config \'%s\':\'%s\'!", name, tostring(err)), "w", false) return false end
+
+    Log(string_format("Successfully saved config: %s", name), "p", false)
+
+    return true
+end
+
+function fileSystem.LoadConfig(name: string): { [any]: any }?
+    if not IsFile or not ReadFile then Log("File system functions are missing from executor enviroment!") return nil end
+
+    local path = CONFIG .. name .. ".cfg"
+    if not IsFile(path) then Log(string_format("Failed to find config file at %s!", tostring(path))) return nil end
+
+    local success, content = pcall(ReadFile, path)
+    if not success or not content then Log(string_format("Failed to read config file at %s!", name), "w", false) return nil end
+
+    local data = {}
+    for line in content:gmatch("[^\r\n]+") do
+        local k, v = line:match("^([^=]+)=(%S+)$")
+        if k and v then
+            if v == "true" then v = true
+            elseif v == "false" then v = false
+            elseif tonumber(v) then v = tonumber(v) end
+
+            data[k] = v
+        end
+    end
+
+    Log(string_format("Successfully loaded config: %s", name), "p", false)
+
+    return data
+end
+
+function fileSystem.DeleteConfig(name: string): boolean
+    if not DeleteFile then Log("DeleteFile function is missing from executor enviroment!", "w", false) return false end
+
+    local path = CONFIG .. name .. ".cfg"
+
+    if IsFile and IsFile(path) then
+        local success = pcall(DeleteFile, path)
+        if success then
+            Log(string_format("Successfully deleted config: %s", name), "p", false)
+        end
+        return success
+    end
+
+    Log(string_format("Failed to delete config: %s", name), "p", false)
+
+    return false
+end
+
+vortex.fileSystem = fileSystem
 
 -- // Utility Functions
 function vortex.Disconnect(connection: RBXScriptConnection): boolean
@@ -246,10 +332,8 @@ end
 function vortex.GetBasePart(target: Instance?): BasePart?
     if not target then Log("Target is nil!", "w", false) return nil end
 
-    if target:IsA("BasePart") then
-        return target :: BasePart
-    elseif target:IsA("Model") then
-        return target.PrimaryPart :: BasePart or target:FindFirstChildWhichIsA("BasePart")
+    if target:IsA("BasePart") then return target :: BasePart
+    elseif target:IsA("Model") then return target.PrimaryPart :: BasePart or target:FindFirstChildWhichIsA("BasePart")
     elseif target:IsA("Tool") then
         local handle = target:FindFirstChild("Handle")
 
@@ -346,7 +430,8 @@ function vortex.CreateAttachment(parent: BasePart, name: string?): Attachment
 end
 
 function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { stop: () -> () }?
-    if not SetHidden then Log("Failed to continue, missing dependency!", "w", false) return nil end
+    if not SetHidden then Log("WriteFile function is missing from executor enviroment!", "w", false) return nil end
+
     intervalSeconds = intervalSeconds or DEFAULT_SIMULATION_INTERVAL
     radius = radius or DEFAULT_SIMULATION_RADIUS
     local isRunning: boolean = true
@@ -429,7 +514,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
 
     local function createNetlessVelocity(): ()
         if conn then return end
-        
+
         conn = RunService.Heartbeat:Connect(function()
             for i=#managedParts, 1, -1 do
                 local part = managedParts[i]
@@ -686,10 +771,7 @@ function vortex.View(target: Instance?): boolean
                 SetCamera(humanoid)
                 return true
             end
-        elseif inst:IsA("BasePart") then
-            SetCamera(inst)
-
-            return true
+        elseif inst:IsA("BasePart") then SetCamera(inst) return true
         elseif inst:IsA("Model") then
             local humanoid: Humanoid = vortex.GetHumanoid(inst)
             local basePart: BasePart? = vortex.GetBasePart(inst)
@@ -797,11 +879,8 @@ end
 local function CheckCharacter(target: (Model | Player)?): Model?
     if not target then Log("Target is nil!", "w", false) return nil end
 
-    if target:IsA("Model") then
-        return target :: Model
-    elseif target:IsA("Player") then
-        return target.Character :: Model
-    end
+    if target:IsA("Model") then return target :: Model
+    elseif target:IsA("Player") then return target.Character :: Model end
 
     Log("Failed to check character!", "w", false)
     return nil
@@ -978,7 +1057,7 @@ function vortex.CleanUp(): ()
 end
 
 function vortex.DumpLogs(clear: boolean?): { string }
-    Log("Dumping logs.", "p", true)
+    Log("Dumping logs.", "p", false)
     local logsCopy = table_clone(vortex.debugLogs)
     for _, log in logsCopy do
         Log(log.text, log.type, true)
@@ -1012,7 +1091,7 @@ function vortex.JoinJobID(jobID: string?, placeID: number?): { success: boolean,
 end
 
 function vortex.Rejoin(): ()
-    Log("Attempting to rejoin..", "p", true)
+    Log("Attempting to rejoin..", "p", false)
 
     local attempt = vortex.JoinJobID(vortex.GetJobID(), currentPlaceID)
     if not attempt.success then
