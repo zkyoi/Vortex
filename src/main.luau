@@ -5,7 +5,7 @@
 ]]--
 
 local vortex = {}
-local _version: string = "v1.3.2"
+local _version: string = "v1.3.3"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -886,16 +886,16 @@ local function CheckCharacter(target: (Model | Player)?): Model?
     return nil
 end
 
-function vortex.GetRoot(target: (Model | Player)?): BasePart?
+function vortex.GetRoot(target: (Model | Player)?, timeout: number?): BasePart?
     if not target then Log("Target is nil!", "w", false) return nil end
     local character: Model? = CheckCharacter(target)
-    return character and (character:FindFirstChild("HumanoidRootPart") :: BasePart?)
+    return character and (character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", timeout or 1)) :: BasePart?
 end
 
-function vortex.GetHumanoid(target: (Model | Player)?): Humanoid?
+function vortex.GetHumanoid(target: (Model | Player)?, timeout: number?): Humanoid?
     if not target then Log("Target is nil!", "w", false) return nil end
     local character: Model? = CheckCharacter(target)
-    return character and (character:FindFirstChildOfClass("Humanoid") :: Humanoid?)
+    return character and (character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", timeout or 1)) :: Humanoid?
 end
 
 function vortex.BreakJoints(): ()
