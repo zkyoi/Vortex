@@ -1,11 +1,11 @@
 --[[
-    Vortex v1.3.2
+    Vortex v1.3.4
     Copyright (c) 2026 zkyoi
     Licensed under the MIT License (MIT)
 ]]--
 
 local vortex = {}
-local _version: string = "v1.3.3"
+local _version: string = "v1.3.4"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -129,6 +129,13 @@ export type logEntry = {
     timestamp: number
 }
 
+export type jointData = {
+    part0: BasePart,
+    part1: BasePart,
+    relativePart0: CFrame,
+    relativePart1: CFrame
+}
+
 -- // Helper Functions
 local function Log(message: string, logFunc: string?, hide: boolean?, custom: string?): ()
     local messageString: string = tostring(message)
@@ -153,7 +160,7 @@ local function Log(message: string, logFunc: string?, hide: boolean?, custom: st
     end
 end
 
-local function Missing<fallbackType>(expectedType: string, object: any, fallback: fallbackType?): fallbackType
+local function Missing<fallbackType>(expectedType: string, object: any, fallback: fallbackType?): fallbackType?
     if typeof(object) ~= expectedType then
         return fallback :: fallbackType
     end
@@ -161,7 +168,7 @@ local function Missing<fallbackType>(expectedType: string, object: any, fallback
     return object :: fallbackType
 end
 
-local function FindVehicle(seat: VehicleSeat): Model?
+local function FindVehicle(seat: (VehicleSeat | Seat)): Model?
     local vehicleChecks = {
         seat:FindFirstAncestor("Body") and seat:FindFirstAncestor("Body").Parent,
         seat:FindFirstAncestor("Car"),
@@ -176,6 +183,16 @@ local function FindVehicle(seat: VehicleSeat): Model?
     end
 
     Log("Failed to find the vehicle!", "w", false)
+    return nil
+end
+
+local function GetBasePartChild(parent: Instance, name: string): BasePart?
+    local object: Instance? = parent:FindFirstChild(name)
+
+    if object and object:IsA("BasePart") then
+        return object :: BasePart
+    end
+
     return nil
 end
 
@@ -201,7 +218,7 @@ end
 
 -- // Save & Load Functions
 function fileSystem.SaveConfig(name: string, tbl: { [any]: any }): boolean
-    if not WriteFile then Log("WriteFile function is missing from executor enviroment!", "w", false) return false end
+    if not WriteFile then Log("WriteFile function is missing from executor enviroment!", "w", false); return false end
 
     local lines = {}
     for k, v in tbl do
@@ -209,7 +226,7 @@ function fileSystem.SaveConfig(name: string, tbl: { [any]: any }): boolean
     end
 
     local success, err = pcall(WriteFile, CONFIG .. name .. ".cfg", table_concat(lines, "\n"))
-    if not success then Log(string_format("Failed to save config \'%s\':\'%s\'!", name, tostring(err)), "w", false) return false end
+    if not success then Log(string_format("Failed to save config \'%s\':\'%s\'!", name, tostring(err)), "w", false); return false end
 
     Log(string_format("Successfully saved config: %s", name), "p", false)
 
@@ -217,13 +234,13 @@ function fileSystem.SaveConfig(name: string, tbl: { [any]: any }): boolean
 end
 
 function fileSystem.LoadConfig(name: string): { [any]: any }?
-    if not IsFile or not ReadFile then Log("File system functions are missing from executor enviroment!") return nil end
+    if not IsFile or not ReadFile then Log("File system functions are missing from executor enviroment!"); return nil end
 
     local path = CONFIG .. name .. ".cfg"
-    if not IsFile(path) then Log(string_format("Failed to find config file at %s!", tostring(path))) return nil end
+    if not IsFile(path) then Log(string_format("Failed to find config file at %s!", tostring(path))); return nil end
 
     local success, content = pcall(ReadFile, path)
-    if not success or not content then Log(string_format("Failed to read config file at %s!", name), "w", false) return nil end
+    if not success or not content then Log(string_format("Failed to read config file at %s!", name), "w", false); return nil end
 
     local data = {}
     for line in content:gmatch("[^\r\n]+") do
@@ -243,7 +260,7 @@ function fileSystem.LoadConfig(name: string): { [any]: any }?
 end
 
 function fileSystem.DeleteConfig(name: string): boolean
-    if not DeleteFile then Log("DeleteFile function is missing from executor enviroment!", "w", false) return false end
+    if not DeleteFile then Log("DeleteFile function is missing from executor enviroment!", "w", false); return false end
 
     local path = CONFIG .. name .. ".cfg"
 
@@ -286,7 +303,7 @@ function vortex.Disconnect(connection: RBXScriptConnection): boolean
 end
 
 function vortex.ResetVelocity(part: BasePart, clearForces: boolean?): ()
-    if not part or not part:IsA("BasePart") then Log("Object is not a BasePart!", "w", false) return end
+    if not part or not part:IsA("BasePart") then Log("Object is not a BasePart!", "w", false); return end
 
     if clearForces then
         for _, v in part:GetChildren() do
@@ -301,7 +318,7 @@ function vortex.ResetVelocity(part: BasePart, clearForces: boolean?): ()
 end
 
 function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
-    if not target then Log("Target is nil!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false); return nil end
     local targetType: string = typeof(target)
 
     if targetType == "CFrame" then
@@ -309,7 +326,7 @@ function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
     elseif targetType == "Vector3" then
         return CFrame.new(target :: Vector3)
     elseif targetType == "Instance" then
-        local inst: Instance = target :: Instance
+        local inst: (Model | Player) = target :: any
 
         if inst:IsA("Player") then
             local root: BasePart? = vortex.GetRoot(inst)
@@ -321,7 +338,8 @@ function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
         if part then
             return part.CFrame
         elseif inst:IsA("Model") then
-            return inst:GetPivot()
+            local model: Model = inst :: Model
+            return model:GetPivot()
         end
     end
 
@@ -330,10 +348,10 @@ function vortex.GetCFrame(target: (Vector3 | CFrame | Instance)?): CFrame?
 end
 
 function vortex.GetBasePart(target: Instance?): BasePart?
-    if not target then Log("Target is nil!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false); return nil end
 
     if target:IsA("BasePart") then return target :: BasePart
-    elseif target:IsA("Model") then return target.PrimaryPart :: BasePart or target:FindFirstChildWhichIsA("BasePart")
+    elseif target:IsA("Model") then return target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
     elseif target:IsA("Tool") then
         local handle = target:FindFirstChild("Handle")
 
@@ -341,7 +359,7 @@ function vortex.GetBasePart(target: Instance?): BasePart?
             return handle :: BasePart
         end
 
-        return target:FindFirstChildWhichIsA("BasePart")
+        return target:FindFirstChildWhichIsA("BasePart") :: BasePart
     end
 
     Log("Failed to get BasePart!", "w", false)
@@ -350,9 +368,9 @@ end
 
 function vortex.GetClosestPlayer(): Player?
     local rootCFrame = vortex.GetCFrame(localPlayer)
-    if not rootCFrame then Log("Failed to get root CFrame!", "w", false) return nil end
+    if not rootCFrame then Log("Failed to get root CFrame!", "w", false); return nil end
     local allPlayers = Players:GetPlayers()
-    local closest: Player
+    local closest: Player?
     local closestDistance: number = math_huge
 
     if #allPlayers <= 1 then
@@ -361,9 +379,9 @@ function vortex.GetClosestPlayer(): Player?
     end
 
     for _, player in allPlayers do
-        if player == localPlayer then continue end
+        if not player or not player.Parent or player == localPlayer then continue end
         local targetCFrame = vortex.GetCFrame(player)
-        if not targetCFrame then Log("Failed to find target CFrame!", "w", false) continue end
+        if not targetCFrame then Log("Failed to find target CFrame!", "w", false); continue end
 
         local distance = (rootCFrame.Position - targetCFrame.Position).Magnitude
         if closestDistance > distance then
@@ -377,18 +395,18 @@ end
 
 -- // Initialization Functions
 function vortex.CreateTimer(durationSeconds: number?): () -> timerData
-    durationSeconds = math_max(durationSeconds or DEFAULT_TIMER_DURATION, 0.001)
+    local duration: number = math_max(durationSeconds or DEFAULT_TIMER_DURATION, 0.001)
 
     local startTime: number = os_clock()
 
     return function(): timerData
         local elapsedTime: number = os_clock() - startTime
-        local alpha: number = math_clamp(elapsedTime / durationSeconds, 0, 1)
+        local alpha: number = math_clamp(elapsedTime / duration, 0, 1)
 
         return {
             alpha = alpha,
             elapsedTime = elapsedTime,
-            isFinished = elapsedTime >= durationSeconds
+            isFinished = elapsedTime >= duration
         }
     end
 end
@@ -424,13 +442,13 @@ function vortex.CreateAttachment(parent: BasePart, name: string?): Attachment
         instance = "Attachment",
         name = name or "VortexAttachment",
         parent = parent
-    })
+    }) :: Attachment
 
     return attachment
 end
 
 function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { stop: () -> () }?
-    if not SetHidden then Log("WriteFile function is missing from executor enviroment!", "w", false) return nil end
+    if not SetHidden then Log("WriteFile function is missing from executor enviroment!", "w", false); return nil end
 
     intervalSeconds = intervalSeconds or DEFAULT_SIMULATION_INTERVAL
     radius = radius or DEFAULT_SIMULATION_RADIUS
@@ -439,7 +457,7 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
     local thread: thread?
     thread = task_spawn(function()
         while isRunning do
-            if not localPlayer or not localPlayer.Parent then Log("Failed to find the LocalPlayer!", "w", false) break end
+            if not localPlayer or not localPlayer.Parent then Log("Failed to find the LocalPlayer!", "w", false); break end
 
             pcall(function()
                 SetHidden(localPlayer, "SimulationRadius", radius)
@@ -452,7 +470,7 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
 
     local controller = {} :: { stop: () -> () }
     function controller.Stop()
-        if not isRunning then Log("Failed to stop, not currently running!", "w", false) return end
+        if not isRunning then Log("Failed to stop, not currently running!", "w", false); return end
         isRunning = false
 
         local index = table_find(currentSession.controllers, controller)
@@ -470,11 +488,11 @@ function vortex.SimulationBoost(radius: number?, intervalSeconds: number?): { st
 end
 
 function vortex.NetlessAlign(data: initialNetless): netlessData?
-    if not data then Log("Please specify data!", "w", false) return nil end
+    if not data then Log("Please specify data!", "w", false); return nil end
 
     local initialTarget: (Vector3 | CFrame | Instance) = data.initialTarget
     local objects: (Instance | { Instance })? = data.objects
-    if not objects then Log("Failed to get objects from data!", "w", false) return nil end
+    if not objects then Log("Failed to get objects from data!", "w", false); return nil end
 
     local desiredCanCollide: boolean = data.canCollide == true
     local isEnabled: boolean = data.enabled ~= false
@@ -482,9 +500,11 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     local objectsList: { Instance }
 
     if typeof(objects) == "Instance" then
-        objectsList = { objects }
+        objectsList = { objects } :: any
+    elseif typeof(objects) == "table" then
+        objectsList = objects :: { Instance }
     else
-        objectsList = objects
+        objectsList = objects :: any
     end
 
     local targetCFrame: CFrame = vortex.GetCFrame(initialTarget) or CFrame_identity
@@ -505,7 +525,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     local multipliedVector: number = 1.5
 
     local managedParts: { BasePart } = {}
-    local activeConstraints: { Instance } = {}
+    local activeInstances: { Instance } = {}
     local originalCollisions: { [BasePart]: boolean } = {}
 
     local controller: netlessData = {} :: netlessData
@@ -539,7 +559,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     end
 
     function controller.Update(newTarget: (Vector3 | CFrame | Instance)): ()
-        if not isRunning then Log("Failed to update, not currently running!", "w", false) return end
+        if not isRunning then Log("Failed to update, not currently running!", "w", false); return end
 
         local newCFrame: CFrame? = vortex.GetCFrame(newTarget)
         if newCFrame then
@@ -548,7 +568,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     end
 
     function controller.SetCanCollide(state: boolean): ()
-        if not isRunning then Log("Failed to set CanCollide, not currently running!", "w", false) return end
+        if not isRunning then Log("Failed to set CanCollide, not currently running!", "w", false); return end
         desiredCanCollide = state
 
         for _, part in managedParts do
@@ -559,7 +579,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     end
 
     function controller.SetEnabled(state: boolean): ()
-        if not isRunning then Log("Failed to set enabled, not currently running!", "w", false) return end
+        if not isRunning then Log("Failed to set enabled, not currently running!", "w", false); return end
         if isEnabled == state then return end
         isEnabled = state
 
@@ -569,7 +589,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
                 conn = nil
             end
 
-            for _, instance in activeConstraints do
+            for _, instance in activeInstances do
                 if instance and instance:IsA("Constraint") then
                     instance.Enabled = false
                 end
@@ -583,7 +603,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
                 vortex.ResetVelocity(part)
             end
         else
-            for _, instance in activeConstraints do
+            for _, instance in activeInstances do
                 if instance and instance:IsA("Constraint") then
                     instance.Enabled = true
                 end
@@ -600,7 +620,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
     end
 
     function controller.Stop(): ()
-        if not isRunning then Log("Failed to stop, not currently running!", "w", false) return end
+        if not isRunning then Log("Failed to stop, not currently running!", "w", false); return end
         isRunning = false
 
         local index = table_find(currentSession.controllers, controller)
@@ -612,7 +632,7 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
             vortex.Disconnect(conn)
         end
 
-        for _, instance in activeConstraints do
+        for _, instance in activeInstances do
             if instance and instance.Parent then
                 instance:Destroy()
             end
@@ -676,9 +696,9 @@ function vortex.NetlessAlign(data: initialNetless): netlessData?
             basePart.CanCollide = false
 
             table_insert(managedParts, basePart)
-            table_insert(activeConstraints, objectAttachment)
-            table_insert(activeConstraints, alignPos)
-            table_insert(activeConstraints, alignOrient)
+            table_insert(activeInstances, objectAttachment)
+            table_insert(activeInstances, alignPos)
+            table_insert(activeInstances, alignOrient)
 
             basePart.Destroying:Once(function()
                 if isRunning then
@@ -710,7 +730,7 @@ end
 function vortex.TeleportTo(target: (Vector3 | CFrame | Instance), useTween: boolean?, tweenSpeed: number?): boolean
     local root: BasePart? = vortex.GetRoot(localPlayer)
     local targetCFrame: CFrame? = vortex.GetCFrame(target)
-    if not root or not targetCFrame then Log("Failed to find root or its CFrame!", "w", false) return false end
+    if not root or not targetCFrame then Log("Failed to find root or its CFrame!", "w", false); return false end
     tweenSpeed = tweenSpeed or TWEEN_SPEED
 
     vortex.ResetVelocity(root)
@@ -737,15 +757,15 @@ end
 
 function vortex.View(target: Instance?): boolean
     local currentCamera: Camera = Workspace.CurrentCamera
-    if not currentCamera then Log("Failed to find CurrentCamera!", "w", false) return false end
+    if not currentCamera then Log("Failed to find CurrentCamera!", "w", false); return false end
 
     local function SetCamera(subject: Instance): ()
-        currentCamera.CameraSubject = subject
+        currentCamera.CameraSubject = subject :: ( BasePart | Humanoid )
     end
 
     local targetType: string = typeof(target)
     if not target then
-        local humanoid: Humanoid = vortex.GetHumanoid(localPlayer)
+        local humanoid: Humanoid? = vortex.GetHumanoid(localPlayer)
 
         if humanoid then
             Log("Failed to find target, attempting to set camera to LocalPlayers Humanoid!", "w", false)
@@ -765,15 +785,15 @@ function vortex.View(target: Instance?): boolean
             SetCamera(inst)
             return true
         elseif inst:IsA("Player") then
-            local humanoid: Humanoid = vortex.GetHumanoid(inst)
+            local humanoid: Humanoid? = vortex.GetHumanoid(inst :: Model) :: Humanoid
 
             if humanoid then
                 SetCamera(humanoid)
                 return true
             end
-        elseif inst:IsA("BasePart") then SetCamera(inst) return true
+        elseif inst:IsA("BasePart") then SetCamera(inst); return true
         elseif inst:IsA("Model") then
-            local humanoid: Humanoid = vortex.GetHumanoid(inst)
+            local humanoid: Humanoid? = vortex.GetHumanoid(inst :: Model)
             local basePart: BasePart? = vortex.GetBasePart(inst)
 
             if humanoid then
@@ -798,9 +818,9 @@ end
 
 function vortex.FindTool(player: Player, toolName: string): Tool?
     local CheckContainer = function(container: Instance?): Tool?
-        if not container then Log("Please specify a container!", "w", false) return nil end
+        if not container then Log("Please specify a container!", "w", false); return nil end
 
-        local item: Tool? = container:FindFirstChild(toolName)
+        local item: (Tool | Instance)? = container:FindFirstChild(toolName)
 
         if not item then
             for _, v in container:GetChildren() do
@@ -811,19 +831,28 @@ function vortex.FindTool(player: Player, toolName: string): Tool?
             end
         end
 
-        return (item and item:IsA("Tool")) and (item :: Tool)
+        if item and item:IsA("Tool") then
+            return item :: Tool
+        end
+
+        return nil
     end
 
     return CheckContainer(player and player:FindFirstChildOfClass("Backpack")) or CheckContainer(vortex.GetChar(player))
 end
 
-function vortex.EquipTool(tool: Tool): Tool?
-    local character: Model? = vortex.GetChar(localPlayer)
-    if not character then Log("Failed to find Character!", "w", false) return nil end
-    local humanoid: Humanoid? = vortex.GetHumanoid(character)
-    if not humanoid then Log("Failed to find Humanoid!", "w", false) return nil end
+function vortex.EquipTool(tool: Tool, unequipTools: boolean?): Tool?
+    unequipTools = unequipTools or true
 
-    humanoid:UnequipTools()
+    local character: Model? = vortex.GetChar(localPlayer)
+    if not character then Log("Failed to find Character!", "w", false); return nil end
+    local humanoid: Humanoid? = vortex.GetHumanoid(character)
+    if not humanoid then Log("Failed to find Humanoid!", "w", false); return nil end
+
+    if unequipTools then
+        humanoid:UnequipTools()
+    end
+
     tool.Parent = character
 
     return tool
@@ -838,7 +867,7 @@ end
 
 -- // Player & Entity Functions
 function vortex.FindPlayer(target: string?): Player?
-    if not target or target == "" then Log("Target is nil or blank string!", "w", false) return nil end
+    if not target or target == "" then Log("Target is nil or blank string!", "w", false); return nil end
 
     local partial: string = string_lower(target)
     local allPlayers = Players:GetPlayers()
@@ -854,7 +883,11 @@ function vortex.FindPlayer(target: string?): Player?
             end
         end
 
-        return #others > 0 and others[math_random(1, #others)]
+        if #others > 0 then
+            return others[math_random(1, #others)]
+        end
+
+        return nil
     end
 
     local IsMatch = function(name: string): boolean
@@ -877,30 +910,62 @@ end
 
 -- // Check Character
 local function CheckCharacter(target: (Model | Player)?): Model?
-    if not target then Log("Target is nil!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false); return nil end
 
     if target:IsA("Model") then return target :: Model
-    elseif target:IsA("Player") then return target.Character :: Model end
+    elseif target:IsA("Player") then return vortex.GetChar(target :: Player) :: Model end
 
     Log("Failed to check character!", "w", false)
     return nil
 end
 
 function vortex.GetRoot(target: (Model | Player)?, timeout: number?): BasePart?
-    if not target then Log("Target is nil!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false); return nil end
     local character: Model? = CheckCharacter(target)
-    return character and (character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", timeout or 1)) :: BasePart?
+    if not character then
+        return nil
+    end
+
+    local root: BasePart? = GetBasePartChild(character, "HumanoidRootPart")
+
+    if root then
+        return root
+    end
+
+    local waitRoot: Instance? = character:WaitForChild("HumanoidRootPart", timeout or 1)
+
+    if waitRoot and waitRoot:IsA("BasePart") then
+        return waitRoot :: BasePart
+    end
+
+    return nil
 end
 
 function vortex.GetHumanoid(target: (Model | Player)?, timeout: number?): Humanoid?
-    if not target then Log("Target is nil!", "w", false) return nil end
+    if not target then Log("Target is nil!", "w", false); return nil end
     local character: Model? = CheckCharacter(target)
-    return character and (character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", timeout or 1)) :: Humanoid?
+    if not character then
+        return nil
+    end
+
+    local humanoid: Humanoid? = character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        return humanoid
+    end
+
+    local waitHumanoid: Instance? = character:WaitForChild("Humanoid", timeout or 1)
+
+    if waitHumanoid and waitHumanoid:IsA("Humanoid") then
+        return waitHumanoid :: Humanoid
+    end
+
+    return nil
 end
 
 function vortex.BreakJoints(): ()
     local character: Model? = vortex.GetChar(localPlayer)
-    if not character then Log("Failed to find Character!", "w", false) return end
+    if not character then Log("Failed to find Character!", "w", false); return end
     for _, joint in character:GetDescendants() do
         if joint:IsA("Motor6D") then
             joint:Destroy()
@@ -909,36 +974,36 @@ function vortex.BreakJoints(): ()
 end
 
 function vortex.Unsit(): ()
-    local humanoid: Humanoid = vortex.GetHumanoid(localPlayer)
-    if not humanoid then Log("Failed to find Humanoid!", "w", false) return end
-    if not humanoid.Sit then Log("Humanoid is not currently sitting!", "w", false) return end
+    local humanoid: Humanoid? = vortex.GetHumanoid(localPlayer)
+    if not humanoid then Log("Failed to find Humanoid!", "w", false); return end
+    if not humanoid.Sit then Log("Humanoid is not currently sitting!", "w", false); return end
 
     local seatedState: EnumItem = Enum.HumanoidStateType.Seated
-    if not seatedState then Log("Failed to find HumanoidStateType.Seated!", "w", false) return end
+    if not seatedState then Log("Failed to find HumanoidStateType.Seated!", "w", false); return end
 
     humanoid.Sit = false
     humanoid:SetStateEnabled(seatedState, false)
 
     task_delay(0.5, function()
-        if not humanoid then Log("Failed to find Humanoid!", "w", false) return end
+        if not humanoid then Log("Failed to find Humanoid!", "w", false); return end
         humanoid:SetStateEnabled(seatedState, true)
     end)
 end
 
 function vortex.TeleportVehicle(target: (Vector3 | CFrame | Instance), useFallback: boolean?): boolean
     local targetCFrame: CFrame? = vortex.GetCFrame(target)
-    if not targetCFrame then Log("Failed to find target CFrame!", "w", false) return false end
+    if not targetCFrame then Log("Failed to find target CFrame!", "w", false); return false end
     local character: Model? = vortex.GetChar(localPlayer)
-    if not character then Log("Failed to find Character!", "w", false) return false end
+    if not character then Log("Failed to find Character!", "w", false); return false end
     local root: BasePart? = vortex.GetRoot(character)
-    if not root then Log("Failed to find root!", "w", false) return false end
+    if not root then Log("Failed to find root!", "w", false); return false end
     local humanoid: Humanoid? = vortex.GetHumanoid(character)
-    if not humanoid then Log("Failed to find Humanoid!", "w", false) return false end
-    local seat: VehicleSeat? = humanoid.SeatPart
-    if not seat then Log("Failed to find seat!", "w", false) return false end
+    if not humanoid then Log("Failed to find Humanoid!", "w", false); return false end
+    local seat: (Seat | VehicleSeat)? = humanoid.SeatPart
+    if not seat then Log("Failed to find seat!", "w", false); return false end
     local seatCFrame: CFrame = seat.CFrame
 
-    local vehicle: Model? = FindVehicle(seat)
+    local vehicle: Model? = FindVehicle(seat :: (VehicleSeat | Seat))
 
     if not vehicle then
         Log("Failed to find vehicle, attempting fallback!", "w", false)
@@ -955,7 +1020,7 @@ function vortex.TeleportVehicle(target: (Vector3 | CFrame | Instance), useFallba
             return true
         end
 
-        local jointData: { Rotate } = {}
+        local jointData: { jointData } = {}
         local gyros: { BodyGyro } = {}
 
         for _, joint in vehicle:GetDescendants() do
@@ -1087,7 +1152,7 @@ function vortex.JoinJobID(jobID: string?, placeID: number?): { success: boolean,
         TeleportService:TeleportToPlaceInstance(targetPlaceID, targetJobID, localPlayer)
     end)
 
-    return { success, err }
+    return { success, err } :: any
 end
 
 function vortex.Rejoin(): ()
