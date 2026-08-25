@@ -1,5 +1,5 @@
 # Vortex
-A lightweight, high-performance Luau library for Roblox.
+A lightweight, high-performance Luau utility library for Roblox.
 
 ## Quick Start
 ```lua
