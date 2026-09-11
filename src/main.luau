@@ -1,11 +1,11 @@
 --[[
-    Vortex v1.4
+    Vortex v1.41
     Copyright (c) 2026 zkyoi
     Licensed under the MIT License (MIT)
 ]]--
 
 local vortex = {}
-local _version: string = "v1.4"
+local _version: string = "v1.41"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -136,15 +136,18 @@ export type JointData = {
 }
 
 -- // Helper Functions
-local function log(message: string, logFunc: string?, hide: boolean?, custom: string?): ()
+local function log(message: string, logFunc: string?, hide: boolean?, custom: string?, success: boolean?): ()
     local messageString: string = tostring(message)
     local lowerFunc: string = (logFunc and string_lower(logFunc)) or "p"
     local hideLog: boolean = hide or false
     local customLog: string = custom or "[Vortex]: "
 
     local activeLogger: (any) -> () = print
-    if lowerFunc == "w" then activeLogger = warn
-    elseif lowerFunc == "e" then activeLogger = error end
+    local logString: string = "[*]"
+    if success then logString = "[+]" end
+
+    if lowerFunc == "w" then activeLogger = warn; logString = "[-]"
+    elseif lowerFunc == "e" then activeLogger = error; logString = "[-]" end
 
     if not hideLog then
         table_insert(vortex.debugLogs, {
@@ -155,7 +158,7 @@ local function log(message: string, logFunc: string?, hide: boolean?, custom: st
     end
 
     if vortex.debugMode == true then
-        activeLogger(string_format("%s %s", customLog, messageString))
+        activeLogger(string_format("%s %s %s", logString, customLog, messageString))
     end
 end
 
@@ -233,7 +236,7 @@ function fileSystem.saveConfig(name: string, tbl: { [any]: any }): boolean
     local success, err = pcall(writeFile, CONFIG .. name .. ".cfg", table_concat(lines, "\n"))
     if not success then log(string_format("Failed to save config \'%s\':\'%s\'!", name, tostring(err)), "w", false); return false end
 
-    log(string_format("Successfully saved config: %s", name), "p", false)
+    log(string_format("Successfully saved config: %s", name), "p", false, false, true)
 
     return true
 end
@@ -259,7 +262,7 @@ function fileSystem.loadConfig(name: string): { [any]: any }?
         end
     end
 
-    log(string_format("Successfully loaded config: %s", name), "p", false)
+    log(string_format("Successfully loaded config: %s", name), "p", false, false, true)
 
     return data
 end
@@ -272,7 +275,7 @@ function fileSystem.deleteConfig(name: string): boolean
     if isFile and isFile(path) then
         local success = pcall(deleteFile, path)
         if success then
-            log(string_format("Successfully deleted config: %s", name), "p", false)
+            log(string_format("Successfully deleted config: %s", name), "p", false, false, true)
         end
         return success
     end
