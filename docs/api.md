@@ -1,3 +1,6 @@
+> [!WARNING]
+> Currently outdated!
+
 # Vortex API
 
 ## Introduction
