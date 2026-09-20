@@ -43,6 +43,7 @@ local typeof = typeof
 local pcall = pcall
 local Vector3_zero = Vector3.zero
 local CFrame_identity = CFrame.identity
+local getgenv = getgenv
 
 -- // Services
 local HttpService = game:GetService("HttpService")
@@ -67,9 +68,11 @@ local fileSystem = {}
 
 local ROOT = "VortexLibrary/"
 local CONFIG = ROOT .. "configs/"
+local CACHE = ROOT .. "cache/"
 
 fileSystem.ROOT = ROOT
 fileSystem.CONFIG = CONFIG
+fileSystem.CACHE = CACHE
 
 -- // Clean up
 local currentSession = {
@@ -215,12 +218,29 @@ local deleteFile: ((string) -> ())? = missing("function", delfile)
 -- // Make Config Folder
 if not isFolder then
     log("isFolder function is missing from executor enviroment!", "w", false)
-elseif not isFolder(CONFIG) then
+else
     if makeFolder then
-        log("Failed to find Config folder, attempting to create one!", "w", false)
-        makeFolder(CONFIG)
+        if not isFolder(CONFIG) then
+            log("Failed to find Config folder, attempting to create one!", "w", false)
+            makeFolder(CONFIG)
+        end
+
+        if not isFolder(CACHE) then
+            log("Failed to find Cache folder, attempting to create one!", "w", false)
+            makeFolder(CACHE)
+        end
     else
         log("makeFolder function is missing from executor enviroment!", "w", false)
+    end
+end
+
+-- // Game Enviroment Variables
+if getgenv then
+    local genv = getgenv()
+    local vgenv = genv.VortexLibrary
+    if not vgenv then
+        genv.VortexLibrary = {}
+        vgenv = genv.VortexLibrary
     end
 end
 
@@ -236,7 +256,7 @@ function fileSystem.saveConfig(name: string, tbl: { [any]: any }): boolean
     local success, err = pcall(writeFile, CONFIG .. name .. ".cfg", table_concat(lines, "\n"))
     if not success then log(string_format("Failed to save config \'%s\':\'%s\'!", name, tostring(err)), "w", false); return false end
 
-    log(string_format("Successfully saved config: %s", name), "p", false, false, true)
+    log(string_format("Successfully saved config: %s", name), "p", false, nil, true)
 
     return true
 end
@@ -262,7 +282,7 @@ function fileSystem.loadConfig(name: string): { [any]: any }?
         end
     end
 
-    log(string_format("Successfully loaded config: %s", name), "p", false, false, true)
+    log(string_format("Successfully loaded config: %s", name), "p", false, nil, true)
 
     return data
 end
@@ -275,7 +295,7 @@ function fileSystem.deleteConfig(name: string): boolean
     if isFile and isFile(path) then
         local success = pcall(deleteFile, path)
         if success then
-            log(string_format("Successfully deleted config: %s", name), "p", false, false, true)
+            log(string_format("Successfully deleted config: %s", name), "p", false, nil, true)
         end
         return success
     end
