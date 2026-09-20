@@ -66,9 +66,9 @@ vortex.debugMode = false
 -- // Save System
 local fileSystem = {}
 
-local ROOT = "VortexLibrary/"
-local CONFIG = ROOT .. "configs/"
-local CACHE = ROOT .. "cache/"
+local ROOT: string = "VortexLibrary/"
+local CONFIG: string = ROOT .. "configs/"
+local CACHE: string = ROOT .. "cache/"
 
 fileSystem.ROOT = ROOT
 fileSystem.CONFIG = CONFIG
@@ -87,7 +87,7 @@ local DEFAULT_TIMER_DURATION: number = 1
 local DEFAULT_SIMULATION_INTERVAL: number = 10
 local DEFAULT_SIMULATION_RADIUS: number = 10000
 local MAX_TELEPORT_CHECK_DISTANCE: number = 5
-local TWEEN_SPEED = 1
+local TWEEN_SPEED: number = 1
 
 local NETLESS_VECTOR: Vector3 = Vector3.new(-30, 0, 0)
 
