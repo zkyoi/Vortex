@@ -191,6 +191,8 @@ local function findVehicle(seat: (VehicleSeat | Seat)): Model?
     return nil
 end
 
+vortex.findVehicle = findVehicle
+
 local function getBasePartChild(parent: Instance, name: string): BasePart?
     local object: Instance? = parent:FindFirstChild(name)
 
@@ -308,6 +310,14 @@ end
 vortex.fileSystem = fileSystem
 
 -- // Utility Functions
+function vortex.isPointInPart(position: Vector3, part: BasePart): boolean
+    local localPos: Vector3 = part.CFrame:PointToObjectSpace(position)
+
+    return math.abs(localPos.X) <= part.Size.X / 2
+        and math.abs(localPos.Y) <= part.Size.Y / 2
+        and math.abs(localPos.Z) <= part.Size.Z / 2
+end
+
 function vortex.disconnect(connection: RBXScriptConnection): boolean
     if not connection then
         log("Failed to disconnect, object is nil!")
