@@ -318,6 +318,16 @@ function vortex.isPointInPart(position: Vector3, part: BasePart): boolean
         and math.abs(localPos.Z) <= part.Size.Z / 2
 end
 
+function vortex.isPointInModelBox(position: Vector3, model: Model): boolean
+    local modelCFrame, modelSize = model:GetBoundingBox()
+
+    local localPos: Vector3 = modelCFrame:PointToObjectSpace(position)
+
+    return math.abs(localPos.X) <= modelSize.X / 2
+        and math.abs(localPos.Y) <= modelSize.Y / 2
+        and math.abs(localPos.Z) <= modelSize.Z / 2
+end
+
 function vortex.disconnect(connection: RBXScriptConnection): boolean
     if not connection then
         log("Failed to disconnect, object is nil!")
