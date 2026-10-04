@@ -1,11 +1,11 @@
 --[[
-    Vortex v1.41
+    Vortex v1.42
     Copyright (c) 2026 zkyoi
     Licensed under the MIT License (MIT)
 ]]--
 
 local vortex = {}
-local _version: string = "v1.41"
+local _version: string = "v1.42"
 
 -- // Local Cache
 local os_clock = os.clock
@@ -404,7 +404,7 @@ function vortex.getBasePart(target: Instance?): BasePart?
     return nil
 end
 
-function vortex.getClosestPlayer(): Player?
+function vortex.getClosestPlayer(teamCheck: boolean?): Player?
     local rootCFrame = vortex.getCFrame(localPlayer)
     if not rootCFrame then log("Failed to get root CFrame!", "w", false); return nil end
     local allPlayers = Players:GetPlayers()
@@ -418,6 +418,7 @@ function vortex.getClosestPlayer(): Player?
 
     for _, player in allPlayers do
         if not player or not player.Parent or player == localPlayer then continue end
+        if teamCheck and player.Team == localPlayer.Team then continue end
         local targetCFrame = vortex.getCFrame(player)
         if not targetCFrame then log("Failed to find target CFrame!", "w", false); continue end
 
